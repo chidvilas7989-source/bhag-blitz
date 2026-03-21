@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bagh Blitz – Lion vs Goat</title>
+  <meta name="description"
+    content="Bagh Blitz - A 2-player online board game. Lions hunt, Goats evade. Who wins the board?" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { outfit: ['Outfit', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet" />
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <style>
+    body {
+      font-family: 'Outfit', sans-serif;
+    }
+  </style>
+
+</head>
+
+<body class="bg-black text-white font-outfit h-screen w-screen">
+
+  <!-- ═══════════════ LANDING PAGE ═══════════════ -->
+  <div id="page-landing" class="page active flex flex-col items-center justify-center h-full overflow-y-auto py-8">
+    <div class="text-center mb-10">
+      <div class="logo-badge">🦁</div>
+      <h1 class="text-5xl font-extrabold tracking-tight neon-text mt-4">Bagh Blitz</h1>
+      <p class="text-gray-400 mt-2 text-lg tracking-wide">Lion vs Goat · 2 Players · Online</p>
+    </div>
+
+    <!-- Accordion wrapper -->
+    <div class="glass-card w-full max-w-sm p-6 space-y-4">
+
+      <!-- CREATE TAB -->
+      <div class="accordion-item" id="acc-create">
+        <button class="accordion-header w-full flex justify-between items-center" onclick="toggleAccordion('create')">
+          <span class="flex items-center gap-2 font-semibold text-lg">
+            <span class="acc-icon">🏠</span> Create Room
+          </span>
+          <span class="acc-arrow text-amber-400 text-xl transition-transform duration-300" id="arrow-create">▾</span>
+        </button>
+        <div class="accordion-body" id="body-create">
+          <div class="space-y-3 pt-4">
+            <input id="create-name" type="text" placeholder="Your Name *" class="form-input" maxlength="20" />
+            <input id="create-gmail" type="email" placeholder="Gmail *" class="form-input" maxlength="60" />
+            <button onclick="createRoom()" class="btn-primary w-full">Create Room</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- JOIN TAB -->
+      <div class="accordion-item" id="acc-join">
+        <button class="accordion-header w-full flex justify-between items-center" onclick="toggleAccordion('join')">
+          <span class="flex items-center gap-2 font-semibold text-lg">
+            <span class="acc-icon">🔗</span> Join Room
+          </span>
+          <span class="acc-arrow text-amber-400 text-xl transition-transform duration-300" id="arrow-join">▾</span>
+        </button>
+        <div class="accordion-body" id="body-join">
+          <div class="space-y-3 pt-4">
+            <input id="join-name" type="text" placeholder="Your Name *" class="form-input" maxlength="20" />
+            <input id="join-roomid" type="text" placeholder="Room ID (6 chars) *" class="form-input" maxlength="6"
+              style="text-transform:uppercase" />
+            <button onclick="joinRoom()" class="btn-secondary w-full">Join Room</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <p id="landing-error" class="text-red-400 mt-4 text-sm hidden"></p>
+  </div>
+
+  <!-- ═══════════════ WAITING PAGE ═══════════════ -->
+  <div id="page-waiting" class="page hidden flex-col items-center justify-center h-full">
+    <div class="glass-card w-full max-w-sm p-8 text-center space-y-6">
+      <div>
+        <p class="text-gray-400 text-sm uppercase tracking-widest">Room ID</p>
+        <div class="flex items-center justify-center gap-3 mt-2">
+          <span id="waiting-room-id" class="room-id-display">------</span>
+          <button onclick="copyRoomId()" class="copy-btn" title="Copy Room ID">📋</button>
+        </div>
+        <p id="copy-toast" class="text-green-400 text-xs mt-1 opacity-0 transition-opacity">Copied!</p>
+      </div>
+
+      <div>
+        <p class="text-gray-400 text-sm uppercase tracking-widest mb-3">Players</p>
+        <div id="waiting-players" class="space-y-2">
+          <!-- populated by JS -->
+        </div>
+      </div>
+
+      <div class="pt-2">
+        <div id="waiting-status" class="text-amber-400 text-sm animate-pulse">Waiting for another player…</div>
+      </div>
+
+      <div class="flex flex-col gap-3 pt-2">
+        <button id="btn-start" onclick="startGame()" class="btn-primary hidden">⚔️ Start Game</button>
+        <button onclick="showLeaveModal()" class="btn-leave">Leave Room</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ GAME PAGE ═══════════════ -->
+  <div id="page-game" class="page hidden flex-col h-full" style="overflow:hidden">
+
+    <!-- Header bar -->
+    <div class="game-header flex items-center justify-between px-4 py-2">
+      <div class="flex items-center gap-3">
+        <span class="text-amber-400 font-bold text-lg">🦁 Bagh Blitz</span>
+        <span class="room-pill" id="game-room-id">------</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <span id="turn-indicator" class="turn-pill">…</span>
+        <button onclick="toggleHamburger()" class="hamburger-btn" id="hamburger-btn">☰</button>
+      </div>
+    </div>
+
+    <!-- Main game area -->
+    <div class="flex flex-1 overflow-hidden relative">
+
+      <!-- Phaser Canvas Container -->
+      <div class="flex-1 flex items-center justify-center bg-transparent" id="phaser-container">
+        <!-- Phaser mounts canvas here -->
+      </div>
+
+      <!-- Right sidebar: coin counts -->
+      <div class="game-sidebar flex flex-col gap-3 p-3 justify-start items-center" id="game-sidebar">
+        <!-- Unplaced Goats (large box) -->
+        <div class="sidebar-box-large" id="sidebar-goats-pool">
+          <p class="sidebar-label">🐑 Goats Left</p>
+          <div id="goats-pool-display" class="goat-pool-grid"></div>
+          <button id="btn-auto-place" onclick="autoPlaceGoat()" class="btn-auto-place hidden">Auto Place</button>
+        </div>
+        <!-- Lion captures (small box top) -->
+        <div class="sidebar-box-small">
+          <p class="sidebar-label">🦁 Captures</p>
+          <p id="lion-captures" class="sidebar-val text-amber-400">0</p>
+        </div>
+        <!-- Goat status (small box bottom) -->
+        <div class="sidebar-box-small">
+          <p class="sidebar-label">🐑 On Board</p>
+          <p id="goats-on-board" class="sidebar-val text-white">0</p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Hamburger panel (slide-in) -->
+    <div id="hamburger-panel" class="hamburger-panel hidden">
+      <div class="flex items-center justify-between mb-3">
+        <span class="font-semibold text-amber-400">💬 Chat</span>
+        <button onclick="toggleHamburger()" class="text-gray-400 hover:text-white text-xl">✕</button>
+      </div>
+      <div id="chat-messages" class="chat-messages flex-1 overflow-y-auto mb-3"></div>
+      <div class="flex gap-2">
+        <input id="chat-input" type="text" placeholder="Type a message…" class="form-input flex-1" maxlength="120"
+          onkeydown="if(event.key==='Enter') sendChat()" />
+        <button onclick="sendChat()" class="btn-send">Send</button>
+      </div>
+      <button onclick="showLeaveModal()" class="btn-leave w-full mt-3">🚪 Leave Game</button>
+    </div>
+
+  </div>
+
+  <!-- ═══════════════ WINNING PAGE ═══════════════ -->
+  <div id="page-winning" class="page hidden flex-col items-center justify-center h-full">
+    <div class="glass-card w-full max-w-sm p-8 text-center space-y-5">
+      <div id="win-trophy" class="text-7xl animate-bounce">🏆</div>
+      <div>
+        <p class="text-gray-400 text-xs uppercase tracking-widest">Room</p>
+        <p class="room-id-display" id="win-room-id">------</p>
+      </div>
+      <div>
+        <p class="text-amber-400 font-semibold text-sm uppercase tracking-widest">Winner</p>
+        <p id="win-name" class="text-3xl font-extrabold neon-text mt-1">—</p>
+        <p id="win-role" class="text-gray-400 text-sm">—</p>
+      </div>
+      <div>
+        <p class="text-gray-500 text-sm">Runner up</p>
+        <p id="runner-name" class="text-lg font-medium text-gray-300">—</p>
+      </div>
+      <div class="flex flex-col gap-3 pt-2">
+        <button id="btn-play-again" onclick="playAgain()" class="btn-primary">🔄 Play Again</button>
+        <button onclick="showLeaveModal()" class="btn-leave">🚪 Leave</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ LEAVE MODAL ═══════════════ -->
+  <div id="leave-modal" class="modal-overlay hidden">
+    <div class="modal-box glass-card">
+      <p class="text-xl font-bold mb-2">Leave Game?</p>
+      <p class="text-gray-400 text-sm mb-6">Are you sure you want to leave? The other player will be notified.</p>
+      <div class="flex gap-3">
+        <button onclick="confirmLeave()" class="btn-danger flex-1">Yes, Leave</button>
+        <button onclick="hideLeaveModal()" class="btn-secondary flex-1">No, Stay</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ TOAST ═══════════════ -->
+  <div id="game-toast" class="game-toast hidden"></div>
+
+  <script src="/static/js/app.js"></script>
+  <script src="/static/js/GameScene.js"></script>
+  <script>
+    window.onload = function () { initApp(); };
+  </script>
+</body>
+
+</html>

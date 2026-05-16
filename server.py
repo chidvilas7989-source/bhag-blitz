@@ -12,7 +12,7 @@ from room_manager import RoomManager
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'baghblitz_secret_2024'
-socketio = SocketIO(app, cors_allowed_origins='*', async_mode='threading')
+socketio = SocketIO(app, cors_allowed_origins='*')
 
 rooms = RoomManager()
 # ─── Visitor Logging Removed ──────────────────────────────────────────────────

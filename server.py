@@ -18,11 +18,22 @@ rooms = RoomManager()
 # ─── Visitor Logging Removed ──────────────────────────────────────────────────
 
 
+from dotenv import load_dotenv
+load_dotenv()
+
 # ─── Routes ─────────────────────────────────────────────────────────────────
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    firebase_config = {
+        'apiKey': os.environ.get('FIREBASE_API_KEY', ''),
+        'authDomain': os.environ.get('FIREBASE_AUTH_DOMAIN', ''),
+        'projectId': os.environ.get('FIREBASE_PROJECT_ID', ''),
+        'storageBucket': os.environ.get('FIREBASE_STORAGE_BUCKET', ''),
+        'messagingSenderId': os.environ.get('FIREBASE_MESSAGING_SENDER_ID', ''),
+        'appId': os.environ.get('FIREBASE_APP_ID', '')
+    }
+    return render_template('index.html', firebase_config=json.dumps(firebase_config))
 
 
 # ─── Socket Events ──────────────────────────────────────────────────────────

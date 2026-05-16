@@ -29,18 +29,11 @@
     import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
     import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-    // TODO: Replace this with your actual Firebase config
-    const firebaseConfig = {
-      apiKey: "AIzaSyA4pWktbR2JN43EUuWCn8RYpeALAnJp53A",
-      authDomain: "bagh-blitz.firebaseapp.com",
-      projectId: "bagh-blitz",
-      storageBucket: "bagh-blitz.firebasestorage.app",
-      messagingSenderId: "816832327839",
-      appId: "1:816832327839:web:2d39fbc584f0f77c8432aa"
-    };
+    // Inject config from server environment variables
+    const firebaseConfig = {{ firebase_config | safe }};
 
-    // Only initialize if config is valid (to prevent errors while testing locally)
-    if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
+    // Only initialize if config is valid
+    if (firebaseConfig.apiKey) {
       const app = initializeApp(firebaseConfig);
       window.firebaseAuth = getAuth(app);
       window.firebaseDb = getFirestore(app);

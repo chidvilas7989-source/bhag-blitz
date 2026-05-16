@@ -1,5 +1,5 @@
 flask
 flask-socketio
-eventlet
-gunicorn==20.1.0
-setuptools
+gevent
+gevent-websocket
+gunicorn

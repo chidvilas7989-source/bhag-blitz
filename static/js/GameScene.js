@@ -42,10 +42,13 @@ class GameScene extends Phaser.Scene {
 
      _scale() {
           const W = this.scale.width, H = this.scale.height, VW = 500, VH = 580;
-          // Reserve space for sidebar on larger screens, otherwise just fit
-          const sidebarWidth = W > 600 ? 120 : 0;
-          const s = Math.min((W - 16 - sidebarWidth) / VW, (H - 16) / VH);
-          const ox = (W - (VW * s + sidebarWidth)) / 2, oy = (H - VH * s) / 2;
+          const isPortrait = H > W;
+          // Reserve space for sidebar on larger screens, otherwise just fit. In portrait, reserve space at bottom.
+          const sidebarWidth = (!isPortrait && W > 600) ? 120 : 0;
+          const sidebarHeight = isPortrait ? 120 : 0;
+          
+          const s = Math.min((W - 16 - sidebarWidth) / VW, (H - 16 - sidebarHeight) / VH);
+          const ox = (W - (VW * s + sidebarWidth)) / 2, oy = (H - (VH * s + sidebarHeight)) / 2;
           this.scaledPos = {}; 
           this.nodeRadius = Math.max(8, 11 * s); 
           this.pieceRadius = Math.max(6, 8 * s);
@@ -53,8 +56,15 @@ class GameScene extends Phaser.Scene {
           for (let id = 0; id < 24; id++) {
                this.scaledPos[id] = { x: vp[id][0] * s + ox, y: vp[id][1] * s + oy };
           }
-          this.sidebarX = ox + VW * s + 60;
-          this.sidebarY = oy + 40;
+          
+          this.isPortrait = isPortrait;
+          if (isPortrait) {
+               this.sidebarX = W / 2;
+               this.sidebarY = oy + VH * s + 40;
+          } else {
+               this.sidebarX = ox + VW * s + 60;
+               this.sidebarY = oy + 40;
+          }
      }
 
      drawBoard() {
@@ -267,11 +277,17 @@ class GameScene extends Phaser.Scene {
           this.sidebarGoatContainer = this.add.container(0, 0);
 
           if (toPlace > 0) {
-               const cols = 2;
+               const cols = this.isPortrait ? 5 : 2;
+               const startX = this.isPortrait 
+                    ? this.sidebarX - ((Math.min(toPlace, cols) - 1) * this.pieceRadius * 1.5)
+                    : this.sidebarX;
+                    
                for (let i = 0; i < toPlace; i++) {
                     const r = Math.floor(i / cols);
                     const c = i % cols;
-                    const x = this.sidebarX + c * (this.pieceRadius * 2.5);
+                    const x = this.isPortrait
+                         ? startX + c * (this.pieceRadius * 3)
+                         : this.sidebarX + c * (this.pieceRadius * 2.5);
                     const y = this.sidebarY + r * (this.pieceRadius * 2.5);
 
                     const pg = this.createPieceGraphic('goat');
@@ -293,9 +309,12 @@ class GameScene extends Phaser.Scene {
                     if (i >= 19) break;
                }
                
-               const label = this.add.text(this.sidebarX - 25, this.sidebarY - 50, `RESERVE: ${toPlace}`, {
+               const labelX = this.isPortrait ? this.sidebarX : this.sidebarX - 25;
+               const labelY = this.isPortrait ? this.sidebarY - 30 : this.sidebarY - 50;
+               const label = this.add.text(labelX, labelY, `RESERVE: ${toPlace}`, {
                     fontSize: '16px', fontFamily: 'Outfit', color: '#fde68a', fontWeight: 'bold'
                });
+               if (this.isPortrait) label.setOrigin(0.5, 0.5);
                this.sidebarGoatContainer.add(label);
           }
      }

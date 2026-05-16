@@ -222,9 +222,9 @@
           ]
      },
      "game_settings": {
-          "lions_count": 5,
-          "goats_count": 16,
-          "lions_to_win": 6
+          "lions_count": 4,
+          "goats_count": 18,
+          "lions_to_win": 13
      },
      "upper_nodes": [
           0,

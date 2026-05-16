@@ -5,6 +5,7 @@
 // ─── Global State ────────────────────────────────────────────────
 const STATE = {
      socket: null,
+     uid: '',
      roomId: '',
      playerName: '',
      role: '',        // 'lion' | 'goat'
@@ -16,13 +17,47 @@ const STATE = {
 };
 window.STATE = STATE;
 
-// ─── Init ─────────────────────────────────────────────────────────
 function initApp() {
+     if (window.onAuthStateChanged) {
+         window.onAuthStateChanged(window.firebaseAuth, (user) => {
+             if (user) {
+                 STATE.uid = user.uid;
+                 connectSocket();
+             } else {
+                 window.signInAnonymously(window.firebaseAuth).catch((error) => {
+                     console.error("Firebase Auth Error", error);
+                     fallbackInit();
+                 });
+             }
+         });
+     } else {
+         fallbackInit();
+     }
+}
+
+function fallbackInit() {
+     let uid = localStorage.getItem('bagh_blitz_uid');
+     if (!uid) {
+          uid = 'usr_' + Math.random().toString(36).substr(2, 9);
+          localStorage.setItem('bagh_blitz_uid', uid);
+     }
+     STATE.uid = uid;
+     connectSocket();
+}
+
+function connectSocket() {
+     if (STATE.socket) return;
      STATE.socket = io();
      bindSocketEvents();
-     showPage('landing');
-     // Open create accordion by default
-     toggleAccordion('create');
+
+     // Check if we were already in a room
+     const savedRoom = localStorage.getItem('bagh_blitz_room');
+     if (savedRoom) {
+          STATE.socket.emit('rejoin_room', { room_id: savedRoom, uid: STATE.uid });
+     } else {
+          showPage('landing');
+          toggleAccordion('create');
+     }
 }
 
 
@@ -62,13 +97,22 @@ function toggleAccordion(which) {
 }
 
 // ─── Landing Actions ──────────────────────────────────────────────
+function saveUserToFirebase(name, gmail) {
+     if (window.firebaseDb && window.doc && window.setDoc && STATE.uid) {
+         const userRef = window.doc(window.firebaseDb, "users", STATE.uid);
+         window.setDoc(userRef, { name: name, gmail: gmail || "", lastActive: new Date() }, { merge: true })
+             .catch(e => console.error("Error saving user to Firebase:", e));
+     }
+}
+
 function createRoom() {
      const name = document.getElementById('create-name').value.trim();
      const gmail = document.getElementById('create-gmail').value.trim();
      if (!name || !gmail) { showLandingError('Name and Gmail are required.'); return; }
      if (!gmail.includes('@')) { showLandingError('Please enter a valid Gmail.'); return; }
      hideLandingError();
-     STATE.socket.emit('create_room', { name, gmail });
+     saveUserToFirebase(name, gmail);
+     STATE.socket.emit('create_room', { name, gmail, uid: STATE.uid });
 }
 
 function joinRoom() {
@@ -77,7 +121,8 @@ function joinRoom() {
      if (!name || !roomId) { showLandingError('Name and Room ID are required.'); return; }
      if (roomId.length !== 6) { showLandingError('Room ID must be 6 characters.'); return; }
      hideLandingError();
-     STATE.socket.emit('join_room', { name, room_id: roomId, gmail: '' });
+     saveUserToFirebase(name, '');
+     STATE.socket.emit('join_room', { name, room_id: roomId, gmail: '', uid: STATE.uid });
 }
 
 function showLandingError(msg) {
@@ -148,7 +193,7 @@ function updateTurnIndicator(gs) {
 function updateSidebar(gs) {
      document.getElementById('lion-captures').textContent = gs.goats_captured;
      document.getElementById('goats-on-board').textContent =
-          (16 - gs.goats_to_place - gs.goats_captured);
+          (18 - gs.goats_to_place - gs.goats_captured);
 
      const btn = document.getElementById('btn-auto-place');
      if (btn) {
@@ -254,6 +299,7 @@ function hideLeaveModal() {
 }
 function confirmLeave() {
      STATE.socket.emit('leave_room', { room_id: STATE.roomId });
+     localStorage.removeItem('bagh_blitz_room');
      resetAndGoHome();
 }
 function resetAndGoHome() {
@@ -309,6 +355,7 @@ function bindSocketEvents() {
 
      s.on('room_created', data => {
           STATE.roomId = data.room_id;
+          localStorage.setItem('bagh_blitz_room', data.room_id);
           STATE.playerName = data.name;
           STATE.role = data.role;
           STATE.isCreator = true;
@@ -322,9 +369,24 @@ function bindSocketEvents() {
 
      s.on('room_joined', data => {
           STATE.roomId = data.room_id;
+          localStorage.setItem('bagh_blitz_room', data.room_id);
           STATE.playerName = data.name;
           STATE.role = data.role;
           STATE.isCreator = false;
+          STATE.nodePositions = data.node_positions;
+          STATE.adjacency = data.adjacency;
+          window._roomPlayers = data.players;
+          document.getElementById('waiting-room-id').textContent = data.room_id;
+          updateWaitingPlayers(data.players);
+          showPage('waiting');
+     });
+
+     s.on('room_rejoined', data => {
+          STATE.roomId = data.room_id;
+          localStorage.setItem('bagh_blitz_room', data.room_id);
+          STATE.playerName = data.name;
+          STATE.role = data.role;
+          STATE.isCreator = data.is_creator;
           STATE.nodePositions = data.node_positions;
           STATE.adjacency = data.adjacency;
           window._roomPlayers = data.players;
@@ -339,6 +401,14 @@ function bindSocketEvents() {
      });
 
      s.on('game_started', data => {
+          if (data.room_id) {
+               STATE.roomId = data.room_id;
+               localStorage.setItem('bagh_blitz_room', data.room_id);
+          }
+          if (data.role) STATE.role = data.role;
+          if (data.name) STATE.playerName = data.name;
+          if (data.is_creator !== undefined) STATE.isCreator = data.is_creator;
+
           STATE.nodePositions = data.node_positions || STATE.nodePositions;
           STATE.adjacency = data.adjacency || STATE.adjacency;
           showPage('game');
@@ -386,6 +456,12 @@ function bindSocketEvents() {
      s.on('error', data => {
           showToast('⚠️ ' + (data.msg || 'Something went wrong.'));
           showLandingError(data.msg || 'Something went wrong.');
+          
+          if (data.msg && data.msg.includes('Cannot rejoin')) {
+               localStorage.removeItem('bagh_blitz_room');
+               showPage('landing');
+               toggleAccordion('create');
+          }
      });
 
      // Win info is injected by GameScene when it detects game_over

@@ -33,18 +33,19 @@ def on_create_room(data):
     sid   = request.sid
     name  = (data.get('name') or '').strip()
     gmail = (data.get('gmail') or '').strip()
+    uid   = data.get('uid')
     if not name or not gmail:
         emit('error', {'msg': 'Name and Gmail are required.'})
         return
 
-    room = rooms.create_room(name, sid, gmail)
+    room = rooms.create_room(name, sid, gmail, uid)
     sio_join_room(room['id'])
 
     emit('room_created', {
         'room_id': room['id'],
         'role': 'lion',
         'name': name,
-        'players': [{'name': p['name'], 'role': p['role']} for p in room['players']],
+        'players': [{'name': p['name'], 'role': p['role'], 'online': p.get('online', True)} for p in room['players']],
         'node_positions': rooms.node_positions(),
         'adjacency': rooms.adjacency(),
     })
@@ -57,17 +58,18 @@ def on_join_room(data):
     name    = (data.get('name') or '').strip()
     gmail   = (data.get('gmail') or '').strip()
     room_id = (data.get('room_id') or '').strip().upper()
+    uid     = data.get('uid')
     if not name or not room_id:
         emit('error', {'msg': 'Name and Room ID are required.'})
         return
 
-    room, err = rooms.join_room(room_id, name, sid, gmail)
+    room, err = rooms.join_room(room_id, name, sid, gmail, uid)
     if err:
         emit('error', {'msg': err})
         return
 
     sio_join_room(room_id)
-    player_list = [{'name': p['name'], 'role': p['role']} for p in room['players']]
+    player_list = [{'name': p['name'], 'role': p['role'], 'online': p.get('online', True)} for p in room['players']]
 
     emit('room_joined', {
         'room_id': room_id,
@@ -79,6 +81,46 @@ def on_join_room(data):
     })
 
     # Notify creator in room
+    emit('player_joined', {'players': player_list}, to=room_id, include_self=False)
+
+
+@socketio.on('rejoin_room')
+def on_rejoin_room(data):
+    from flask import request
+    sid = request.sid
+    room_id = data.get('room_id')
+    uid = data.get('uid')
+    
+    room, err = rooms.rejoin_room(room_id, uid, sid)
+    if err:
+        emit('error', {'msg': 'Cannot rejoin: ' + err})
+        return
+        
+    sio_join_room(room_id)
+    player = next(p for p in room['players'] if p['uid'] == uid)
+    player_list = [{'name': p['name'], 'role': p['role'], 'online': p.get('online', True)} for p in room['players']]
+    
+    if room['started']:
+        emit('game_started', {
+            'game_state': room['game_state'],
+            'node_positions': rooms.node_positions(),
+            'adjacency': rooms.adjacency(),
+            'role': player['role'],
+            'room_id': room_id,
+            'name': player['name'],
+            'is_creator': (room['creator_uid'] == uid)
+        })
+    else:
+        emit('room_rejoined', {
+            'room_id': room_id,
+            'role': player['role'],
+            'name': player['name'],
+            'players': player_list,
+            'node_positions': rooms.node_positions(),
+            'adjacency': rooms.adjacency(),
+            'is_creator': (room['creator_uid'] == uid)
+        })
+        
     emit('player_joined', {'players': player_list}, to=room_id, include_self=False)
 
 
@@ -107,16 +149,14 @@ def on_make_move(data):
     move    = data.get('move', {})
     client_role = data.get('role')
 
-    print(f"[DEBUG] Room: {room_id}, SID: {sid}, Role: {client_role}, Move: {move}", flush=True)
     room, err = rooms.make_move(room_id, sid, move, client_role)
     if err:
-        print(f"[DEBUG] Move error: {err}", flush=True)
         emit('error', {'msg': err})
         return
 
-    print(f"[DEBUG] Move success. New turn: {room['game_state']['turn']}", flush=True)
     for p in room['players']:
-        emit('move_result', {'game_state': room['game_state']}, to=p['sid'])
+        if p.get('online'):
+            emit('move_result', {'game_state': room['game_state']}, to=p['sid'])
 
 
 @socketio.on('chat_message')
@@ -153,10 +193,10 @@ def on_leave(data):
     sid     = request.sid
     room_id = data.get('room_id', '')
     sio_leave_room(room_id)
-    room, remaining = rooms.remove_player(sid)
+    room, remaining = rooms.remove_player_completely(sid)
     if room and remaining:
         emit('player_left', {
-            'players': [{'name': p['name'], 'role': p['role']} for p in remaining],
+            'players': [{'name': p['name'], 'role': p['role'], 'online': p.get('online', True)} for p in remaining],
             'msg': 'The other player has left the game.',
         }, to=room_id)
 
@@ -165,14 +205,14 @@ def on_leave(data):
 def on_disconnect():
     from flask import request
     sid = request.sid
-    room, remaining = rooms.remove_player(sid)
+    room, remaining = rooms.mark_player_offline(sid)
     if room and remaining:
         emit('player_left', {
-            'players': [{'name': p['name'], 'role': p['role']} for p in remaining],
-            'msg': 'The other player disconnected.',
+            'players': [{'name': p['name'], 'role': p['role'], 'online': p.get('online', True)} for p in remaining],
+            'msg': 'The other player disconnected (they might reconnect).',
         }, to=room['id'])
 
 
 if __name__ == '__main__':
     print('🦁 Bagh Blitz server starting on http://localhost:5000')
-    socketio.run(app, host='0.0.0.0', port=5000, debug=False)
+    socketio.run(app, host='0.0.0.0', port=5000, debug=False, allow_unsafe_werkzeug=True)

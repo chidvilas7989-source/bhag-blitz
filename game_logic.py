@@ -65,7 +65,7 @@ def get_initial_state():
     
     # Zone definitions based on board rows
     # Fixed Lion starting positions: Apex (0), upper corners (1, 5), and bottom corners (21, 23)
-    lion_indices = [0, 1, 5, 21, 23]
+    lion_indices = [0,3,8,13]
     for idx in lion_indices:
         board[idx] = 'lion'
         
@@ -167,7 +167,7 @@ def apply_move(state, move):
     # Win conditions
     remaining_goats = s['goats_to_place'] + b.count('goat')
     
-    if s['goats_captured'] >= LIONS_TO_WIN or remaining_goats <= 6:
+    if s['goats_captured'] >= LIONS_TO_WIN or remaining_goats < 5:
         s['game_over'] = True
         s['winner'] = 'lion'
     elif s['phase'] == 'movement' and not all_lion_moves(s):

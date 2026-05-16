@@ -22,6 +22,35 @@
     rel="stylesheet" />
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
+  
+  <!-- Firebase SDK (Configure with your project details) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    // TODO: Replace this with your actual Firebase config
+    const firebaseConfig = {
+      apiKey: "AIzaSyA4pWktbR2JN43EUuWCn8RYpeALAnJp53A",
+      authDomain: "bagh-blitz.firebaseapp.com",
+      projectId: "bagh-blitz",
+      storageBucket: "bagh-blitz.firebasestorage.app",
+      messagingSenderId: "816832327839",
+      appId: "1:816832327839:web:2d39fbc584f0f77c8432aa"
+    };
+
+    // Only initialize if config is valid (to prevent errors while testing locally)
+    if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
+      const app = initializeApp(firebaseConfig);
+      window.firebaseAuth = getAuth(app);
+      window.firebaseDb = getFirestore(app);
+      window.signInAnonymously = signInAnonymously;
+      window.onAuthStateChanged = onAuthStateChanged;
+      window.doc = doc;
+      window.setDoc = setDoc;
+    }
+  </script>
+
   <link rel="stylesheet" href="/static/css/style.css" />
   <style>
     body {
@@ -106,6 +135,18 @@
 
       <div class="pt-2">
         <div id="waiting-status" class="text-amber-400 text-sm animate-pulse">Waiting for another player…</div>
+      </div>
+
+      <!-- Game Rules -->
+      <div class="text-left bg-white/5 rounded-lg p-4 border border-white/10 shadow-inner mt-2">
+        <h3 class="text-amber-400 font-semibold mb-2 text-sm uppercase tracking-wider flex items-center gap-2"><span>📜</span> Game Rules</h3>
+        <ul class="text-gray-300 text-xs space-y-1.5 list-disc pl-4">
+          <li><strong>Goal:</strong> Lions must capture 13 goats. Goats must trap all lions.</li>
+          <li><strong>Placement Phase:</strong> Goats are placed one by one. Lions move between placements.</li>
+          <li><strong>Movement:</strong> Pieces move along the drawn lines to adjacent empty spots.</li>
+          <li><strong>Capture:</strong> A lion captures a goat by jumping over it in a straight line to an empty spot behind it.</li>
+        </ul>
+        </ul>
       </div>
 
       <div class="flex flex-col gap-3 pt-2">
